@@ -12,6 +12,7 @@ extends CharacterBody2D
 @export var active_ripple_multiplier: float = 1.5
 @export var max_stretch: float = 0.3
 @export var rotation_smoothness: float = 6.0 
+@export_range(8, 256) var cell_segments: int = 64
 
 @export_group("Player Controls")
 @export var move_speed: float = 220.0
@@ -26,6 +27,18 @@ extends CharacterBody2D
 @export var nucleus_ripple_factor: float = 0.2 
 @export var nucleus_rotational_inertia: float = 0.1 
 @export_range(0.0, 1.0) var nucleus_opacity: float = 1.0
+@export var nucleus_structural_offset: float = 25.0 # How far back the nucleus rests
+@export var fiber_count: int = 14
+@export var fiber_opacity: float = 0.35
+@export var fiber_segments: int = 6
+
+@export_group("Anomalous Morphology")
+@export var tail_length: float = 180.0
+@export var tail_wobble_speed: float = 8.0
+@export var tail_wobble_amp: float = 20.0
+@export var tail_base_width: float = 8.0
+@export_range(5.0, 90.0) var tail_max_bend_angle: float = 30.0
+@export var tail_straightening_speed: float = 3.0
 
 @export_group("Contact Deformation")
 @export var deformation_max_indent: float = 0.35
