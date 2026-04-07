@@ -1,7 +1,14 @@
 [gd_scene format=3 uid="uid://155xx7s6y6ta"]
 
+[ext_resource type="Script" uid="uid://nlb10llokxv2" path="res://scripts/microbiome_generator.gd" id="1_0wfyh"]
 [ext_resource type="PackedScene" uid="uid://be8qbmt0fe144" path="res://scenes/player.tscn" id="1_o5qli"]
+[ext_resource type="PackedScene" path="res://scenes/obstacle.tscn" id="2_jyhfs"]
+[ext_resource type="PackedScene" path="res://scenes/organic_debris.tscn" id="3_tbgi4"]
 
 [node name="Node2D" type="Node2D" unique_id=478515698]
+script = ExtResource("1_0wfyh")
+obstacle_scene = ExtResource("2_jyhfs")
+organic_debris_scene = ExtResource("3_tbgi4")
 
 [node name="Player" parent="." unique_id=661476950 instance=ExtResource("1_o5qli")]
+collision_mask = 6
