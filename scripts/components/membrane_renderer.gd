@@ -82,11 +82,12 @@ func process_rendering(delta: float, time_passed: float) -> void:
 	var tail_speed = max(0.1, speed_ratio) # Idle sway fallback
 	accumulated_tail_phase += delta * host.tail_wobble_speed * tail_speed
 	
-	var segments = 16
+	var segments = host.tail_segments
 	var seg_len = host.tail_length / float(segments - 1)
 	
-	# Initialize tail points along a trailing line (prevents solid-circle startup)
-	if _tail_points.is_empty():
+	# Initialize or Re-initialize tail points if segments count changed
+	if _tail_points.size() != segments:
+		_tail_points.clear()
 		var init_dir = Vector2(-1, 0).rotated(smoothed_stretch_angle)
 		for i in range(segments):
 			_tail_points.append(_last_n_trans_pos + init_dir * seg_len * i)
@@ -156,6 +157,38 @@ func process_rendering(delta: float, time_passed: float) -> void:
 	material.set_shader_parameter("time", time_passed)
 	material.set_shader_parameter("active_color", host.color_active)
 
+func get_membrane_points(time_passed: float, resolution: int) -> PackedVector2Array:
+	noise.frequency = host.ripple_frequency
+	noise.fractal_octaves = host.ripple_complexity
+	
+	var speed_ratio = host.velocity.length() / host.move_speed
+	var stretch = 1.0 + (speed_ratio * host.max_stretch)
+	var squash = 1.0 / stretch
+	
+	var flow_offset = accumulated_flow
+	var dynamic_ripple_ratio = host.ripple_ratio * (1.0 + (speed_ratio * host.active_ripple_multiplier))
+	var ripple_amp = host.base_radius * dynamic_ripple_ratio
+	
+	var pts = PackedVector2Array()
+	for i in range(resolution + 1):
+		var angle = (float(i) / resolution) * TAU
+		var dir_vec = Vector2(cos(angle), sin(angle))
+		
+		var distortion = noise.get_noise_3d(dir_vec.x * 100.0 - flow_offset.x, 
+											dir_vec.y * 100.0 - flow_offset.y, 
+											accumulated_noise_time)
+		
+		var current_radius = host.base_radius + (distortion * ripple_amp) + (sin(time_passed * host.pulse_speed) * (host.base_radius * 0.05))
+		
+		var contact_indent = _deformation.get_contact_indent_at(dir_vec)
+		current_radius -= contact_indent
+		
+		var edge_pt = dir_vec * current_radius
+		edge_pt = _apply_stretch(edge_pt, stretch, squash, smoothed_stretch_angle)
+		pts.append(edge_pt)
+	
+	return pts
+
 func get_stretch_angle() -> float:
 	return smoothed_stretch_angle
 
@@ -183,21 +216,12 @@ func draw_cell(time_passed: float) -> void:
 	uvs.append(Vector2(100.0, 100.0))
 	colors.append(body_color)
 	
-	for i in range(segments + 1): 
-		var angle = (float(i) / segments) * TAU
-		var dir_vec = Vector2(cos(angle), sin(angle))
-		
-		var distortion = noise.get_noise_3d(dir_vec.x * 100.0 - flow_offset.x, 
-											dir_vec.y * 100.0 - flow_offset.y, 
-											accumulated_noise_time)
-		
-		var current_radius = host.base_radius + (distortion * ripple_amp) + (sin(time_passed * host.pulse_speed) * (host.base_radius * 0.05))
-		
-		var contact_indent = _deformation.get_contact_indent_at(dir_vec)
-		current_radius -= contact_indent
-		
-		var edge_pt = dir_vec * current_radius
-		edge_pt = _apply_stretch(edge_pt, stretch, squash, smoothed_stretch_angle)
+	var rim_points = get_membrane_points(time_passed, segments)
+	
+	for i in range(rim_points.size()):
+		var edge_pt = rim_points[i]
+		var dir_vec = edge_pt.normalized() # Approximation for UVs
+		if edge_pt.length_squared() < 0.01: dir_vec = Vector2.RIGHT
 		
 		# Glow buffer: geometry is 50% larger than the cell body to allow the shader to draw the halo
 		var glow_pt = edge_pt * 1.5 
@@ -214,13 +238,11 @@ func draw_cell(time_passed: float) -> void:
 	RenderingServer.canvas_item_add_triangle_array(host.get_canvas_item(), indices, points, colors, uvs)
 	
 	# Outlining and organelle trigger
-	var rim_points = PackedVector2Array()
-	for i in range(1, points.size()):
-		rim_points.append(points[i] / 1.5) # Scale back to true edge for outline
+	var outline_pts = rim_points
 	
-	host.draw_polyline(rim_points, body_color.lightened(0.4), 1.5, true)
+	host.draw_polyline(outline_pts, body_color.lightened(0.4), 1.5, true)
 	
-	_cached_rim_points = rim_points
+	_cached_rim_points = outline_pts
 	
 	# Trigger redraw for the Additive organelle layer and Tail
 	_cached_time = time_passed

@@ -4,7 +4,7 @@ extends CharacterBody2D
 # Parameters Noctiluca Crobiaris (Player)
 # ==========================================
 @export_group("Physics & Cell Shape")
-@export var base_radius: float = 75.0
+@export var base_radius: float = 50.0
 @export var pulse_speed: float = 1.0
 @export var ripple_ratio: float = 0.1
 @export var ripple_frequency: float = 0.005 
@@ -13,6 +13,7 @@ extends CharacterBody2D
 @export var max_stretch: float = 0.3
 @export var rotation_smoothness: float = 6.0 
 @export_range(8, 256) var cell_segments: int = 64
+@export_range(8, 128) var collision_segments: int = 32
 
 @export_group("Player Controls")
 @export var move_speed: float = 220.0
@@ -34,6 +35,7 @@ extends CharacterBody2D
 
 @export_group("Anomalous Morphology")
 @export var tail_length: float = 180.0
+@export_range(4, 128) var tail_segments: int = 24
 @export var tail_wobble_speed: float = 8.0
 @export var tail_wobble_amp: float = 20.0
 @export var tail_base_width: float = 8.0
@@ -65,12 +67,21 @@ var _deformation: MembraneDeformation
 var _biolum: BioluminescenceSystem
 var _organelles: OrganelleManager
 var _renderer: MembraneRenderer
+var _collision_poly: CollisionPolygon2D
 
 func _ready() -> void:
-	# Synchronize collision shape
+	# Initialize Collision Polygon for dynamic deformation
+	_collision_poly = get_node_or_null("CollisionPolygon2D")
+	if not _collision_poly:
+		_collision_poly = CollisionPolygon2D.new()
+		_collision_poly.name = "CollisionPolygon2D"
+		add_child(_collision_poly)
+	
+	# Disable old static collision shape if it exists
 	var col_node = get_node_or_null("CollisionShape2D")
-	if col_node and col_node.shape is CircleShape2D:
-		col_node.shape.radius = base_radius
+	if col_node:
+		col_node.disabled = true
+		col_node.visible = false
 		
 	# Initialize SOLID components
 	_locomotion = CellLocomotion.new(self)
@@ -91,8 +102,14 @@ func _physics_process(delta: float) -> void:
 	_biolum.process_luminescence(delta, speed_ratio if speed_ratio > 0.1 else 0.0)
 	_organelles.process_drift(delta, time_passed, speed_ratio, _deformation.get_active_deformations())
 	_renderer.process_rendering(delta, time_passed)
+	_sync_collision_polygon()
 	
 	queue_redraw()
+
+func _sync_collision_polygon() -> void:
+	if _renderer and _collision_poly:
+		var pts = _renderer.get_membrane_points(time_passed, collision_segments)
+		_collision_poly.polygon = pts
 
 func _draw() -> void:
 	if _renderer:
